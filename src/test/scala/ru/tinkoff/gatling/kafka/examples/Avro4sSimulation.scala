@@ -1,15 +1,18 @@
 package ru.tinkoff.gatling.kafka.examples
 
-import com.sksamuel.avro4s._
-import io.gatling.core.Predef._
+import io.gatling.core.scenario.Simulation
 import io.gatling.core.structure.ScenarioBuilder
 import org.apache.kafka.clients.producer.ProducerConfig
-import ru.tinkoff.gatling.kafka.Predef._
 import ru.tinkoff.gatling.kafka.protocol.KafkaProtocol
+import ru.tinkoff.gatling.kafka.request.builder.Sender
 
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class Avro4sSimulation extends Simulation {
+
+  import io.gatling.core.Predef._
+  import ru.tinkoff.gatling.kafka.KafkaDsl._
 
   val kafkaConf: KafkaProtocol = kafka
   // Kafka topic name
@@ -26,26 +29,22 @@ class Avro4sSimulation extends Simulation {
         ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG ->
           "org.apache.kafka.common.serialization.StringSerializer"
       ))
+    .build
 
   case class Ingredient(name: String, sugar: Double, fat: Double)
 
-  implicit lazy val ingridientToRecord: ToRecord[Ingredient]     = ToRecord.apply
-  implicit lazy val ingridientFromRecord: FromRecord[Ingredient] = FromRecord.apply
-  implicit lazy val ingridientScemaFor: SchemaFor[Ingredient]    = SchemaFor.apply
-  implicit lazy val ingridientFormat: RecordFormat[Ingredient]   = RecordFormat.apply
 
-  val scn: ScenarioBuilder = scenario("Kafka Test")
-    .exec(
-      kafka("Simple Request")
-      // message to send
-        .send[Ingredient](Ingredient("Cheese", 0d, 70d)))
-    .exec(
-      kafka("Simple Request with Key")
-      // message to send
-        .send[String, Ingredient]("Key", Ingredient("Cheese", 0d, 70d)))
+  val sender = new Sender
 
-  setUp(
-    scn
-      .inject(constantUsersPerSec(10) during (90 seconds)))
-    .protocols(kafkaConf)
+  val scn: ScenarioBuilder =
+    scenario("Kafka Test")
+    .exec {
+      sender.send("Simple Request", Ingredient("Cheese", 0d, 70d))
+    }
+    .exec {
+      sender.send("Simple Request with Key", "Key", Ingredient("Cheese", 0d, 70d))
+    }
+
+
+  setUp(scn.inject(constantUsersPerSec(10) during (90 seconds))).protocols(kafkaConf)
 }

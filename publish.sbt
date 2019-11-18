@@ -1,5 +1,5 @@
 ThisBuild / organization := "ru.tinkoff"
-ThisBuild / scalaVersion := "2.12.8"
+ThisBuild / scalaVersion := "2.12.10"
 
 ThisBuild / publishMavenStyle := true
 

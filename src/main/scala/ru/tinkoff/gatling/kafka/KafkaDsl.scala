@@ -1,19 +1,13 @@
 package ru.tinkoff.gatling.kafka
 
-import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.session.Expression
-import ru.tinkoff.gatling.kafka.protocol.{KafkaProtocol, KafkaProtocolBuilder}
-import ru.tinkoff.gatling.kafka.request.builder.{KafkaRequestBuilderBase, RequestBuilder}
+import ru.tinkoff.gatling.kafka.protocol.KafkaProtocolBuilder
 
-trait KafkaDsl {
+object KafkaDsl {
 
-  val kafka: KafkaProtocolBuilder.type = KafkaProtocolBuilder
+  final case class KafkaAttributes[K, V](requestName: Expression[String], key: Option[Expression[K]], payload: Expression[V])
 
-  def kafka(requestName: Expression[String]) =
-    KafkaRequestBuilderBase(requestName)
 
-  implicit def kafkaProtocolBuilder2kafkaProtocol(builder: KafkaProtocolBuilder): KafkaProtocol = builder.build
-
-  implicit def kafkaRequestBuilder2ActionBuilder[K, V](builder: RequestBuilder[K, V]): ActionBuilder = builder.build
+  final val kafka: KafkaProtocolBuilder.type = KafkaProtocolBuilder
 
 }

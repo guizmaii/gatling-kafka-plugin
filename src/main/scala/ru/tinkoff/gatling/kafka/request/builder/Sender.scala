@@ -1,30 +1,44 @@
 package ru.tinkoff.gatling.kafka.request.builder
 
-import com.sksamuel.avro4s.{FromRecord, RecordFormat, SchemaFor}
+import io.gatling.core.action.Action
+import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.session.Expression
+import io.gatling.core.structure.ScenarioContext
+import org.apache.kafka.clients.producer.KafkaProducer
+import ru.tinkoff.gatling.kafka.KafkaDsl.KafkaAttributes
+import ru.tinkoff.gatling.kafka.actions.KafkaRequestAction
+import ru.tinkoff.gatling.kafka.protocol.KafkaProtocol
+import ru.tinkoff.gatling.kafka.protocol.KafkaProtocol.Components
 
-trait Sender[K, V] {
+final class Sender {
 
-  def send(requestName: Expression[String], payload: Expression[V]): RequestBuilder[Nothing, V]
+  import scala.collection.JavaConverters._
 
-  def send(requestName: Expression[String], key: Option[Expression[K]], payload: Expression[V]): RequestBuilder[K, V]
+  private def doSend[K, V](requestName: Expression[String], key: Option[Expression[K]], payload: Expression[V]): ActionBuilder =
+    (ctx: ScenarioContext, next: Action) => {
+      import ctx._
 
-}
+      val kafkaComponents: Components = protocolComponentsRegistry.components(KafkaProtocol.kafkaProtocolKey)
 
-object Sender extends LowPriorSender {
+      val producer = new KafkaProducer[K, V](kafkaComponents.kafkaProtocol.properties.asJava)
 
-  implicit def Avro4sSender[K, V](implicit
-                                  schema: SchemaFor[V],
-                                  format: RecordFormat[V],
-                                  fromRecord: FromRecord[V]): Sender[K, V] = new Sender[K, V] {
+      coreComponents.actorSystem.registerOnTermination(producer.close())
 
-    override def send(requestName: Expression[String], payload: Expression[V]): RequestBuilder[Nothing, V] =
-      new KafkaAvro4sRequestBuilder[Nothing, V](Avro4sAttributes(requestName, None, payload, schema, format, fromRecord))
+      new KafkaRequestAction(
+        producer,
+        KafkaAttributes(requestName, key, payload),
+        coreComponents,
+        kafkaComponents.kafkaProtocol,
+        throttled,
+        next
+      )
+    }
 
-    override def send(requestName: Expression[String],
-                      key: Option[Expression[K]],
-                      payload: Expression[V]): RequestBuilder[K, V] =
-      new KafkaAvro4sRequestBuilder[K, V](Avro4sAttributes(requestName, key, payload, schema, format, fromRecord))
-  }
+  def send[V](requestName: Expression[String], payload: Expression[V]): ActionBuilder =
+    doSend(requestName, None, payload)
+
+  def send[K, V](requestName: Expression[String], key: Expression[K], payload: Expression[V]): ActionBuilder =
+    doSend(requestName, Some(key), payload)
+
 
 }
